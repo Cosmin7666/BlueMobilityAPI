@@ -7,3 +7,16 @@ Content-Type: application/json
   "username": "admin",
   "password": "Admin2026"
 }
+
+
+### Response
+GET http://localhost:3000/api/v1/ba_docume001
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsInVzZXJuYW1lIjoiYWRtaW4iLCJpYXQiOjE3NjgyMDgyMzYsImV4cCI6MTc2ODIzNzAzNn0.NQWZxTMdwt9rD5qxyS-lagQXWDq6yh0hSiQC_1ErXRQ
+
+### Response
+GET http://localhost:3000/api/v1/ba_docume001/stream
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsInVzZXJuYW1lIjoiYWRtaW4iLCJpYXQiOjE3NjgyMDgyMzYsImV4cCI6MTc2ODIzNzAzNn0.NQWZxTMdwt9rD5qxyS-lagQXWDq6yh0hSiQC_1ErXRQ
+
+### Response
+GET http://localhost:3000/api/v1/ba_docume001?page=1&limit=10
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsInVzZXJuYW1lIjoiYWRtaW4iLCJpYXQiOjE3NjgyMDgyMzYsImV4cCI6MTc2ODIzNzAzNn0.NQWZxTMdwt9rD5qxyS-lagQXWDq6yh0hSiQC_1ErXRQ

@@ -1,18 +1,87 @@
 const express = require('express');
 const router = express.Router();
-const pool = require('../db/mec42_svi'); // il pool Postgres
-const { Parser } = require('json2csv'); // per trasformare JSON in CSV
-
-// Cache in memoria per le pagine
-const cache = new Map();
-const PREFETCH_PAGES = 1; // numero di pagine da prefetchare avanti
+const pool = require('../db/mec42_svi');
+const archiver = require('archiver');
+const QueryStream = require('pg-query-stream');
+const { Transform } = require('stream');
 
 /**
  * @swagger
- * /ba_docume001:
+ * tags:
+ *   name: ba_docume001
+ *   description: Documenti
+ */
+
+/**
+ * @swagger
+ * /ba_docume001/export:
  *   get:
- *     summary: Ottieni documenti con paginazione
- *     description: Restituisce i documenti in pagine con totale righe e pagine
+ *     summary: Esporta ba_docume005 in ZIP come JSON (streaming)
+ *     tags: [ba_docume001]
+ *     responses:
+ *       200:
+ *         description: File ZIP contenente JSON
+ *         content:
+ *           application/zip:
+ *             schema:
+ *               type: string
+ *               format: binary
+ */
+router.get('/export', async (req, res) => {
+  const client = await pool.connect();
+
+  try {
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename="ba_docume005.zip"'
+    );
+
+    const archive = archiver('zip', { zlib: { level: 9 } });
+    archive.on('error', (err) => {
+      console.error('Archiver error:', err);
+      res.status(500).end();
+      client.release();
+    });
+
+    archive.pipe(res);
+
+    const query = new QueryStream('SELECT * FROM ba_docume005');
+    const dbStream = client.query(query);
+
+    let first = true;
+    const jsonTransform = new Transform({
+      writableObjectMode: true,
+      transform: (chunk, encoding, callback) => {
+        try {
+          const jsonChunk = JSON.stringify(chunk);
+          const output = first ? `[${jsonChunk}` : `,${jsonChunk}`;
+          first = false;
+          callback(null, output);
+        } catch (err) {
+          callback(err);
+        }
+      },
+      final(callback) {
+        callback(null, ']');
+      }
+    });
+
+    archive.append(dbStream.pipe(jsonTransform), { name: 'ba_docume005.json' });
+    archive.finalize().then(() => client.release());
+  } catch (err) {
+    console.error(err);
+    client.release();
+    res.status(500).end();
+  }
+});
+
+/**
+ * @swagger
+ * /ba_docume001/preview:
+ *   get:
+ *     summary: Preview di ba_docume005 
+ *     tags: [ba_docume001]
  *     parameters:
  *       - in: query
  *         name: page
@@ -24,73 +93,36 @@ const PREFETCH_PAGES = 1; // numero di pagine da prefetchare avanti
  *         name: limit
  *         schema:
  *           type: integer
- *           default: 1000
+ *           default: 100
  *         description: Numero di righe per pagina
- *       - in: query
- *         name: format
- *         schema:
- *           type: string
- *           enum: [json, csv]
- *           default: json
- *         description: Formato di ritorno
  *     responses:
  *       200:
- *         description: Lista dei documenti paginata
+ *         description: Lista JSON paginata
  */
-router.get('/', async (req, res) => {
+router.get('/preview', async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 1000;
-    const format = req.query.format || 'json';
+    const limit = parseInt(req.query.limit) || 100;
+    const offset = (page - 1) * limit;
 
-    // Contiamo tutte le righe solo la prima volta (cache semplice)
-    let totalRows = cache.get('totalRows');
-    if (totalRows === undefined) {
-      const countResult = await pool.query('SELECT COUNT(*) FROM ba_docume005');
-      totalRows = parseInt(countResult.rows[0].count, 10);
-      cache.set('totalRows', totalRows);
-    }
+    // Conta il totale righe
+    const countResult = await pool.query('SELECT COUNT(*) FROM ba_docume005');
+    const totalRows = parseInt(countResult.rows[0].count, 10);
     const totalPages = Math.ceil(totalRows / limit);
 
-    // Funzione interna per prendere la pagina (dalla cache se possibile)
-    async function getPageData(p) {
-      if (cache.has(p)) return cache.get(p);
+    // Prendi solo le righe richieste
+    const { rows } = await pool.query(
+      'SELECT * FROM ba_docume005 ORDER BY doserial, cprownum OFFSET $1 LIMIT $2',
+      [offset, limit]
+    );
 
-      const offset = (p - 1) * limit;
-      const { rows } = await pool.query(
-        'SELECT * FROM ba_docume005 ORDER BY doserial, cprownum OFFSET $1 LIMIT $2',
-        [offset, limit]
-      );
-
-      cache.set(p, rows);
-      return rows;
-    }
-
-    // Carica la pagina richiesta
-    const data = await getPageData(page);
-
-    // Prefetch pagine successive in background
-    for (let i = 1; i <= PREFETCH_PAGES; i++) {
-      const nextPage = page + i;
-      if (nextPage <= totalPages) getPageData(nextPage); // async senza await
-    }
-
-    if (format === 'csv') {
-      // Trasforma in CSV e invia come testo
-      const json2csv = new Parser();
-      const csv = json2csv.parse(data);
-      res.setHeader('Content-Type', 'text/csv');
-      res.send(csv);
-    } else {
-      // Formato JSON standard
-      res.json({
-        page,
-        limit,
-        totalRows,
-        totalPages,
-        data
-      });
-    }
+    res.json({
+      page,
+      limit,
+      totalRows,
+      totalPages,
+      data: rows
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Errore nel database' });

@@ -24,7 +24,10 @@ const pool = require('../db/mec42_svi');
 router.get('/', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM ba_salart005');
-    res.json(result.rows);
+    res.json({
+      totalRows: result.rowCount, // numero totale righe restituite
+      data: result.rows
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Errore nel database' });
