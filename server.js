@@ -2,9 +2,11 @@ require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
+const path = require('path'); // ✅ necessario per express.static
 
 const verifyToken = require('./middleware/authMiddleware');
 const setupSwagger = require('./swagger'); // swagger.js nel root
+
 
 // -------------------- IMPORT ROUTE --------------------
 const authRoutes = require('./routes/auth'); // login
@@ -67,6 +69,8 @@ app.use('/api/v1/ba_payment', verifyToken, ba_payment);
 app.use('/api/v1/ba_docume_m001', verifyToken, ba_docume_m001);
 app.use('/api/v1/ba_docume001', verifyToken, ba_docume001);
 app.use('/api/v1/ba_codiva', verifyToken, ba_codiva);
+
+
 
 // -------------------- START SERVER --------------------
 const PORT = process.env.PORT || 3000;

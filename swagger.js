@@ -1,6 +1,8 @@
 // swagger.js (nel root)
 const swaggerJSDoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
+const express = require('express');
+const path = require('path');
 
 const options = {
   definition: {
@@ -32,9 +34,19 @@ const options = {
 
 const swaggerSpec = swaggerJSDoc(options);
 
+
 function setupSwagger(app) {
-  app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+  // Serve la cartella swagger per tutorial.js e tutorial.css
+  app.use('/swagger', express.static(path.join(__dirname, 'swagger')));
+
+  // Setup Swagger UI
+  app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+    customCssUrl: "/swagger/tutorial.css",
+    customJs: "/swagger/tutorial.js"
+  }));
+
   console.log("Swagger pronto su /api-docs");
 }
+
 
 module.exports = setupSwagger;
