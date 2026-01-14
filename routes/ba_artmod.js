@@ -16,11 +16,11 @@ const { Transform } = require('stream');
  * @swagger
  * /ba_artmod/export:
  *   get:
- *     summary: Esporta ba_artmod in ZIP come JSON (streaming)
+ *     summary: Esporta ba_artmod in ZIP come JSON (streaming, pretty)
  *     tags: [ba_artmod]
  *     responses:
  *       200:
- *         description: File ZIP contenente JSON
+ *         description: File ZIP contenente JSON formattato
  *         content:
  *           application/zip:
  *             schema:
@@ -38,6 +38,7 @@ router.get('/export', async (req, res) => {
     );
 
     const archive = archiver('zip', { zlib: { level: 9 } });
+
     archive.on('error', (err) => {
       console.error('Archiver error:', err);
       res.status(500).end();
@@ -50,24 +51,41 @@ router.get('/export', async (req, res) => {
     const dbStream = client.query(query);
 
     let first = true;
+
     const jsonTransform = new Transform({
       writableObjectMode: true,
-      transform: (chunk, encoding, callback) => {
+
+      transform(chunk, encoding, callback) {
         try {
-          const jsonChunk = JSON.stringify(chunk);
-          const output = first ? `[${jsonChunk}` : `,${jsonChunk}`;
-          first = false;
+          // formatta l'oggetto con indentazione
+          const prettyObject = JSON.stringify(chunk, null, 2)
+            .split('\n')
+            .map(line => '  ' + line)
+            .join('\n');
+
+          let output;
+          if (first) {
+            output = `[\n${prettyObject}`;
+            first = false;
+          } else {
+            output = `,\n${prettyObject}`;
+          }
+
           callback(null, output);
         } catch (err) {
           callback(err);
         }
       },
+
       final(callback) {
-        callback(null, ']');
+        callback(null, '\n]\n');
       }
     });
 
-    archive.append(dbStream.pipe(jsonTransform), { name: 'ba_artmod.json' });
+    archive.append(dbStream.pipe(jsonTransform), {
+      name: 'ba_artmod.json'
+    });
+
     archive.finalize().then(() => client.release());
   } catch (err) {
     console.error(err);
@@ -80,7 +98,7 @@ router.get('/export', async (req, res) => {
  * @swagger
  * /ba_artmod/preview:
  *   get:
- *     summary: Preview di ba_artmod 
+ *     summary: Preview di ba_artmod
  *     tags: [ba_artmod]
  *     parameters:
  *       - in: query
@@ -117,7 +135,6 @@ router.get('/preview', async (req, res) => {
     res.json({
       page,
       limit,
-
       totalRows,
       totalPages,
       data: rows

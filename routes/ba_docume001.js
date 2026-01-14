@@ -16,11 +16,11 @@ const { Transform } = require('stream');
  * @swagger
  * /ba_docume001/export:
  *   get:
- *     summary: Esporta ba_docume005 in ZIP come JSON (streaming)
+ *     summary: Esporta ba_docume005 in ZIP come JSON (streaming, pretty)
  *     tags: [ba_docume001]
  *     responses:
  *       200:
- *         description: File ZIP contenente JSON
+ *         description: File ZIP contenente JSON formattato
  *         content:
  *           application/zip:
  *             schema:
@@ -38,6 +38,7 @@ router.get('/export', async (req, res) => {
     );
 
     const archive = archiver('zip', { zlib: { level: 9 } });
+
     archive.on('error', (err) => {
       console.error('Archiver error:', err);
       res.status(500).end();
@@ -50,24 +51,40 @@ router.get('/export', async (req, res) => {
     const dbStream = client.query(query);
 
     let first = true;
+
     const jsonTransform = new Transform({
       writableObjectMode: true,
-      transform: (chunk, encoding, callback) => {
+
+      transform(chunk, encoding, callback) {
         try {
-          const jsonChunk = JSON.stringify(chunk);
-          const output = first ? `[${jsonChunk}` : `,${jsonChunk}`;
-          first = false;
+          const prettyObject = JSON.stringify(chunk, null, 2)
+            .split('\n')
+            .map(line => '  ' + line)
+            .join('\n');
+
+          let output;
+          if (first) {
+            output = `[\n${prettyObject}`;
+            first = false;
+          } else {
+            output = `,\n${prettyObject}`;
+          }
+
           callback(null, output);
         } catch (err) {
           callback(err);
         }
       },
+
       final(callback) {
-        callback(null, ']');
+        callback(null, '\n]\n');
       }
     });
 
-    archive.append(dbStream.pipe(jsonTransform), { name: 'ba_docume005.json' });
+    archive.append(dbStream.pipe(jsonTransform), {
+      name: 'ba_docume005.json'
+    });
+
     archive.finalize().then(() => client.release());
   } catch (err) {
     console.error(err);
@@ -80,7 +97,7 @@ router.get('/export', async (req, res) => {
  * @swagger
  * /ba_docume001/preview:
  *   get:
- *     summary: Preview di ba_docume005 
+ *     summary: Preview di ba_docume005
  *     tags: [ba_docume001]
  *     parameters:
  *       - in: query
@@ -105,12 +122,10 @@ router.get('/preview', async (req, res) => {
     const limit = parseInt(req.query.limit) || 100;
     const offset = (page - 1) * limit;
 
-    // Conta il totale righe
     const countResult = await pool.query('SELECT COUNT(*) FROM ba_docume005');
     const totalRows = parseInt(countResult.rows[0].count, 10);
     const totalPages = Math.ceil(totalRows / limit);
 
-    // Prendi solo le righe richieste
     const { rows } = await pool.query(
       'SELECT * FROM ba_docume005 ORDER BY doserial, cprownum OFFSET $1 LIMIT $2',
       [offset, limit]
