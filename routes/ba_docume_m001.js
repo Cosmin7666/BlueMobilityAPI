@@ -3,84 +3,23 @@ const router = express.Router();
 const pool = require('../db/mec42_svi');
 const archiver = require('archiver');
 const QueryStream = require('pg-query-stream');
-const { Transform } = require('stream');
+const prettyJsonStream = require('../utils/prettyJsonStream');
 
 /**
  * @swagger
  * tags:
  *   name: ba_docume_m001
- *   description: Storico ordini master
+ *   description: Storico ordini - documenti master
  */
-
-/**
- * @swagger
- * /ba_docume_m001/export:
- *   get:
- *     summary: Esporta ba_docume_m005 in ZIP come JSON (streaming)
- *     tags: [ba_docume_m001]
- *     responses:
- *       200:
- *         description: File ZIP contenente JSON
- *         content:
- *           application/zip:
- *             schema:
- *               type: string
- *               format: binary
- */
-router.get('/export', async (req, res) => {
-  const client = await pool.connect();
-
-  try {
-    res.setHeader('Content-Type', 'application/zip');
-    res.setHeader(
-      'Content-Disposition',
-      'attachment; filename="ba_docume_m005.zip"'
-    );
-
-    const archive = archiver('zip', { zlib: { level: 9 } });
-    archive.on('error', (err) => {
-      console.error('Archiver error:', err);
-      res.status(500).end();
-      client.release();
-    });
-
-    archive.pipe(res);
-
-    const query = new QueryStream('SELECT * FROM ba_docume_m005');
-    const dbStream = client.query(query);
-
-    let first = true;
-    const jsonTransform = new Transform({
-      writableObjectMode: true,
-      transform: (chunk, encoding, callback) => {
-        try {
-          const jsonChunk = JSON.stringify(chunk);
-          const output = first ? `[${jsonChunk}` : `,${jsonChunk}`;
-          first = false;
-          callback(null, output);
-        } catch (err) {
-          callback(err);
-        }
-      },
-      final(callback) {
-        callback(null, ']');
-      }
-    });
-
-    archive.append(dbStream.pipe(jsonTransform), { name: 'ba_docume_m005.json' });
-    archive.finalize().then(() => client.release());
-  } catch (err) {
-    console.error(err);
-    client.release();
-    res.status(500).end();
-  }
-});
 
 /**
  * @swagger
  * /ba_docume_m001/preview:
  *   get:
- *     summary: Preview di ba_docume_m005 
+ *     summary: Preview di ba_docume_m005
+ *     description: |
+ *       Restituisce una **anteprima paginata** dei documenti master
+ *       dello storico ordini, utile per consultazione rapida.
  *     tags: [ba_docume_m001]
  *     parameters:
  *       - in: query
@@ -105,12 +44,12 @@ router.get('/preview', async (req, res) => {
     const limit = parseInt(req.query.limit) || 100;
     const offset = (page - 1) * limit;
 
-    // Conta il totale righe
-    const countResult = await pool.query('SELECT COUNT(*) FROM ba_docume_m005');
+    const countResult = await pool.query(
+      'SELECT COUNT(*) FROM ba_docume_m005'
+    );
     const totalRows = parseInt(countResult.rows[0].count, 10);
     const totalPages = Math.ceil(totalRows / limit);
 
-    // Prendi solo le righe richieste
     const { rows } = await pool.query(
       'SELECT * FROM ba_docume_m005 ORDER BY doserial, docodese OFFSET $1 LIMIT $2',
       [offset, limit]
@@ -128,5 +67,80 @@ router.get('/preview', async (req, res) => {
     res.status(500).json({ message: 'Errore nel database' });
   }
 });
+
+/**
+ * @swagger
+ * /ba_docume_m001/export:
+ *   get:
+ *     summary: Esporta ba_docume_m005 in ZIP (JSON formattato, streaming)
+ *     description: |
+ *       Questa API esporta **tutti i record della tabella ba_docume_m005**
+ *       in un file **ZIP** contenente un **JSON leggibile e formattato**.
+ *
+ *       L’esportazione avviene in **streaming**, quindi è adatta anche
+ *       a grandi volumi di dati senza impatto sulla memoria.
+ *
+ *       Cosa ottieni:
+ *       • Un file `ba_docume_m005.zip`
+ *       • All’interno trovi `ba_docume_m005.json`
+ *
+ *       Come usarla:
+ *       1. Clicca **Authorize** e inserisci il token JWT oppure **Try it out**
+ *       2. Premi **Execute**
+ *       3. Scarica il file ZIP
+ *       4. Estrai e apri il file JSON con un editor
+ *          (consigliato: Notepad++)
+ *
+ *       Nota:
+ *       Swagger non visualizza il contenuto del file ZIP.
+ *       Il JSON è accessibile solo dopo l’estrazione.
+ *
+ *     tags: [ba_docume_m001]
+ *     responses:
+ *       200:
+ *         description: File ZIP contenente JSON formattato
+ *         content:
+ *           application/zip:
+ *             schema:
+ *               type: string
+ *               format: binary
+ */
+router.get('/export', async (req, res) => {
+  const client = await pool.connect();
+
+  try {
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename="ba_docume_m005.zip"'
+    );
+
+    const archive = archiver('zip', { zlib: { level: 9 } });
+
+    archive.on('error', (err) => {
+      console.error('Archiver error:', err);
+      res.status(500).end();
+      client.release();
+    });
+
+    archive.pipe(res);
+
+    const query = new QueryStream('SELECT * FROM ba_docume_m005');
+    const dbStream = client.query(query);
+
+    archive.append(
+      dbStream.pipe(prettyJsonStream()),
+      { name: 'ba_docume_m005.json' }
+    );
+
+    archive.finalize().then(() => client.release());
+  } catch (err) {
+    console.error(err);
+    client.release();
+    res.status(500).end();
+  }
+});
+
+
 
 module.exports = router;

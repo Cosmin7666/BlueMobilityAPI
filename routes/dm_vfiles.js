@@ -3,8 +3,7 @@ const router = express.Router();
 const pool = require('../db/mec42_svi');
 const archiver = require('archiver');
 const QueryStream = require('pg-query-stream');
-const { Transform } = require('stream');
-
+const prettyJsonStream = require('../utils/prettyJsonStream'); 
 /**
  * @swagger
  * tags:
@@ -14,73 +13,12 @@ const { Transform } = require('stream');
 
 /**
  * @swagger
- * /dm_vfiles/export:
- *   get:
- *     summary: Esporta dm_vfiles in ZIP come JSON (streaming)
- *     tags: [dm_vfiles]
- *     responses:
- *       200:
- *         description: File ZIP contenente JSON
- *         content:
- *           application/zip:
- *             schema:
- *               type: string
- *               format: binary
- */
-router.get('/export', async (req, res) => {
-  const client = await pool.connect();
-
-  try {
-    res.setHeader('Content-Type', 'application/zip');
-    res.setHeader(
-      'Content-Disposition',
-      'attachment; filename="dm_vfiles.zip"'
-    );
-
-    const archive = archiver('zip', { zlib: { level: 9 } });
-    archive.on('error', (err) => {
-      console.error('Archiver error:', err);
-      res.status(500).end();
-      client.release();
-    });
-
-    archive.pipe(res);
-
-    const query = new QueryStream('SELECT * FROM dm_vfiles');
-    const dbStream = client.query(query);
-
-    let first = true;
-    const jsonTransform = new Transform({
-      writableObjectMode: true,
-      transform: (chunk, encoding, callback) => {
-        try {
-          const jsonChunk = JSON.stringify(chunk);
-          const output = first ? `[${jsonChunk}` : `,${jsonChunk}`;
-          first = false;
-          callback(null, output);
-        } catch (err) {
-          callback(err);
-        }
-      },
-      final(callback) {
-        callback(null, ']');
-      }
-    });
-
-    archive.append(dbStream.pipe(jsonTransform), { name: 'dm_vfiles.json' });
-    archive.finalize().then(() => client.release());
-  } catch (err) {
-    console.error(err);
-    client.release();
-    res.status(500).end();
-  }
-});
-
-/**
- * @swagger
  * /dm_vfiles/preview:
  *   get:
- *     summary: Preview di dm_vfiles 
+ *     summary: Preview di dm_vfiles
+ *     description: |
+ *       Restituisce una **anteprima paginata** dei file allegati.
+ *       Utile per consultazione rapida senza esportare tutto il dataset.
  *     tags: [dm_vfiles]
  *     parameters:
  *       - in: query
@@ -126,5 +64,70 @@ router.get('/preview', async (req, res) => {
     res.status(500).json({ message: 'Errore nel database' });
   }
 });
+
+/**
+ * @swagger
+ * /dm_vfiles/export:
+ *   get:
+ *     summary: Esporta dm_vfiles in ZIP (JSON formattato, streaming)
+ *     description: |
+ *       Questa API esporta **tutti i record della tabella dm_vfiles**
+ *       in un file **ZIP** contenente un **JSON leggibile e formattato**.
+ *
+ *       L’esportazione avviene in **streaming**, quindi funziona anche
+ *       con grandi volumi di dati senza impatto sulla memoria.
+ *
+ *       Cosa ottieni:
+ *       • Un file `dm_vfiles.zip`
+ *       • All’interno trovi `dm_vfiles.json`
+ *
+ *       Nota:
+ *       Swagger non mostra il contenuto del file ZIP. Il JSON è accessibile solo dopo estrazione.
+ *
+ *     tags: [dm_vfiles]
+ *     responses:
+ *       200:
+ *         description: File ZIP contenente JSON formattato
+ *         content:
+ *           application/zip:
+ *             schema:
+ *               type: string
+ *               format: binary
+ */
+router.get('/export', async (req, res) => {
+  const client = await pool.connect();
+
+  try {
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename="dm_vfiles.zip"'
+    );
+
+    const archive = archiver('zip', { zlib: { level: 9 } });
+
+    archive.on('error', (err) => {
+      console.error('Archiver error:', err);
+      res.status(500).end();
+      client.release();
+    });
+
+    archive.pipe(res);
+
+    const query = new QueryStream('SELECT * FROM dm_vfiles');
+    const dbStream = client.query(query);
+
+    // ✅ usa prettyJsonStream per JSON leggibile
+    archive.append(dbStream.pipe(prettyJsonStream()), { name: 'dm_vfiles.json' });
+
+    archive.finalize().then(() => client.release());
+  } catch (err) {
+    console.error(err);
+    client.release();
+    res.status(500).end();
+  }
+});
+
+
 
 module.exports = router;
