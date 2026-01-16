@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
-const path = require('path'); // ✅ necessario per express.static
+const path = require('path'); //necessario per express.static
 
 const verifyToken = require('./middleware/authMiddleware');
 const setupSwagger = require('./swagger'); // swagger.js nel root
@@ -74,4 +74,4 @@ app.use('/api/v1/ba_codiva', verifyToken, ba_codiva);
 
 // -------------------- START SERVER --------------------
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server in ascolto sulla porta ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`Server in ascolto sulla porta ${PORT}`));
