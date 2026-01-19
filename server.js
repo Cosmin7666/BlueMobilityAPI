@@ -1,15 +1,13 @@
 require('dotenv').config();
+
 const express = require('express');
-const bodyParser = require('body-parser');
 const cors = require('cors');
-const path = require('path'); //necessario per express.static
 
 const verifyToken = require('./middleware/authMiddleware');
-const setupSwagger = require('./swagger'); // swagger.js nel root
-
+const setupSwagger = require('./swagger');
 
 // -------------------- IMPORT ROUTE --------------------
-const authRoutes = require('./routes/auth'); // login
+const authRoutes = require('./routes/auth');
 
 const ba_keysog001 = require('./routes/ba_keysog001');
 const ba_cliforsed001 = require('./routes/ba_cliforsed001');
@@ -36,8 +34,18 @@ const ba_codiva = require('./routes/ba_codiva');
 
 // -------------------- INIT APP --------------------
 const app = express();
-app.use(cors());
-app.use(bodyParser.json());
+
+// -------------------- CORS --------------------
+app.use(cors({
+  origin: '*', // permette richieste da qualsiasi PC
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['Content-Disposition']
+}));
+
+// -------------------- BODY PARSER --------------------
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // -------------------- SWAGGER --------------------
 setupSwagger(app);
@@ -46,32 +54,39 @@ setupSwagger(app);
 // Auth (pubbliche)
 app.use('/api/v1/auth', authRoutes);
 
-// Tutte le route protette da JWT
-app.use('/api/v1/ba_keysog001', verifyToken, ba_keysog001);
-app.use('/api/v1/ba_cliforsed001', verifyToken, ba_cliforsed001);
-app.use('/api/v1/ba_offices', verifyToken, ba_offices);
-app.use('/api/v1/ba_cliforcon001', verifyToken, ba_cliforcon001);
-app.use('/api/v1/ba_cliforfid001', verifyToken, ba_cliforfid001);
-app.use('/api/v1/ba_artmod', verifyToken, ba_artmod);
-app.use('/api/v1/ba_artattvar001', verifyToken, ba_artattvar001);
-app.use('/api/v1/ba_artkey001', verifyToken, ba_artkey001);
-app.use('/api/v1/ba_umiart001', verifyToken, ba_umiart001);
-app.use('/api/v1/ba_lisdet001', verifyToken, ba_lisdet001);
-app.use('/api/v1/ba_unimis', verifyToken, ba_unimis);
-app.use('/api/v1/ba_grumer', verifyToken, ba_grumer);
-app.use('/api/v1/ba_famarti', verifyToken, ba_famarti);
-app.use('/api/v1/ba_marche', verifyToken, ba_marche);
-app.use('/api/v1/ba_mercat', verifyToken, ba_mercat);
-app.use('/api/v1/ba_salart001', verifyToken, ba_salart001);
-app.use('/api/v1/ba_artdoc', verifyToken, ba_artdoc);
-app.use('/api/v1/dm_vfiles', verifyToken, dm_vfiles);
-app.use('/api/v1/ba_payment', verifyToken, ba_payment);
-app.use('/api/v1/ba_docume_m001', verifyToken, ba_docume_m001);
-app.use('/api/v1/ba_docume001', verifyToken, ba_docume001);
-app.use('/api/v1/ba_codiva', verifyToken, ba_codiva);
+// Route protette da JWT
+const protectedRoutes = {
+  '/ba_keysog001': ba_keysog001,
+  '/ba_cliforsed001': ba_cliforsed001,
+  '/ba_offices': ba_offices,
+  '/ba_cliforcon001': ba_cliforcon001,
+  '/ba_cliforfid001': ba_cliforfid001,
+  '/ba_artmod': ba_artmod,
+  '/ba_artattvar001': ba_artattvar001,
+  '/ba_artkey001': ba_artkey001,
+  '/ba_umiart001': ba_umiart001,
+  '/ba_lisdet001': ba_lisdet001,
+  '/ba_unimis': ba_unimis,
+  '/ba_grumer': ba_grumer,
+  '/ba_famarti': ba_famarti,
+  '/ba_marche': ba_marche,
+  '/ba_mercat': ba_mercat,
+  '/ba_salart001': ba_salart001,
+  '/ba_artdoc': ba_artdoc,
+  '/dm_vfiles': dm_vfiles,
+  '/ba_payment': ba_payment,
+  '/ba_docume_m001': ba_docume_m001,
+  '/ba_docume001': ba_docume001,
+  '/ba_codiva': ba_codiva
+};
 
-
+for (const path in protectedRoutes) {
+  app.use(`/api/v1${path}`, verifyToken, protectedRoutes[path]);
+}
 
 // -------------------- START SERVER --------------------
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, '0.0.0.0', () => console.log(`Server in ascolto sulla porta ${PORT}`));
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server in ascolto sulla porta ${PORT}`);
+  });

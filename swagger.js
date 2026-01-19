@@ -13,7 +13,7 @@ const options = {
       description: "API con tutte le tabelle e JWT"
     },
     servers: [
-      { url: "http://localhost:3000/api/v1" }
+      { url: "http://10.0.1.151:3000/api/v1" }
     ],
     components: {
       securitySchemes: {
