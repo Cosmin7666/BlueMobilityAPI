@@ -13,6 +13,7 @@ const options = {
       description: "API con tutte le tabelle e JWT"
     },
     servers: [
+      // Cambia con il tuo URL del server
       { url: "http://10.0.1.151:3000/api/v1" }
     ],
     components: {
@@ -50,3 +51,4 @@ function setupSwagger(app) {
 
 
 module.exports = setupSwagger;
+

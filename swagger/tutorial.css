@@ -1,4 +1,8 @@
 /* tutorial.css */
+
+/* ===============================
+   MODAL HELP
+   =============================== */
 #swagger-help-modal {
   position: fixed;
   top: 0;
@@ -24,4 +28,36 @@
   margin-top: 15px;
   padding: 6px 12px;
   cursor: pointer;
+}
+
+/* ===============================
+   CLEAN RESPONSE SWAGGER
+   =============================== */
+
+/* Nasconde CURL e request URL */
+.opblock .request-snippets,
+.opblock .curl-command,
+.opblock .request-url {
+  display: none !important;
+}
+
+/* Nasconde solo response headers e tabella codici */
+.opblock .response-headers {
+  display: none !important;
+}
+
+
+/* Nasconde media type, example, schema, model, links */
+.opblock .response-content-type,
+.opblock .example,
+.opblock .schema,
+.opblock .model-box,
+.opblock .model,
+.opblock .opblock-links {
+  display: none !important;
+}
+
+/* Mostra solo il link Download per ZIP */
+.opblock .download-contents.download-button {
+  display: block !important;
 }

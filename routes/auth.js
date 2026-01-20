@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
-const pool = require('../db/test_auth'); // DB test_auth per login
+const pool = require('../db/test_auth');
 
 /**
  * @swagger
@@ -15,27 +15,29 @@ const pool = require('../db/test_auth'); // DB test_auth per login
  * @swagger
  * /auth/login:
  *   post:
- *     summary: Effettua il login e restituisce il token JWT
+ *     summary: Login utente
+ *     description: >
+ *       Effettua l’autenticazione e restituisce un token JWT.
+ *       Il token deve essere utilizzato nell’header Authorization
+ *       per l’accesso agli endpoint protetti.
  *     tags: [Auth]
  *     requestBody:
  *       required: true
+ *       description: Credenziali di accesso
  *       content:
  *         application/json:
  *           schema:
  *             type: object
- *             required:
- *               - username
- *               - password
  *             properties:
  *               username:
  *                 type: string
- *                 example: admin
+ *                 example: user_example
  *               password:
  *                 type: string
- *                 example: Admin2026
+ *                 example: password_example
  *     responses:
  *       200:
- *         description: Login effettuato con successo
+ *         description: Autenticazione riuscita
  *         content:
  *           application/json:
  *             schema:
@@ -44,15 +46,14 @@ const pool = require('../db/test_auth'); // DB test_auth per login
  *                 token:
  *                   type: string
  *       401:
- *         description: Username o password errati
+ *         description: Credenziali non valide
  *       500:
- *         description: Errore server
+ *         description: Errore interno del server
  */
 router.post('/login', async (req, res) => {
   const { username, password } = req.body;
 
   try {
-    // Cerca l'utente nel DB
     const result = await pool.query(
       'SELECT * FROM users WHERE username = $1',
       [username]
@@ -64,13 +65,11 @@ router.post('/login', async (req, res) => {
 
     const user = result.rows[0];
 
-    // Confronta la password in chiaro con l'hash memorizzato
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) {
       return res.status(401).json({ message: 'Username o password errati' });
     }
 
-    // Genera il token JWT con id, username e ruolo
     const token = jwt.sign(
       { userId: user.id, username: user.username, role: user.role },
       process.env.JWT_SECRET,
@@ -85,3 +84,4 @@ router.post('/login', async (req, res) => {
 });
 
 module.exports = router;
+
